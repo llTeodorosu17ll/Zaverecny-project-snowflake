@@ -133,9 +133,10 @@ výpočet poradia krajín pomocou window functions.
 4. Vizualizácia dát
 
 Na základe dátového skladu bolo vytvorených päť vizualizácií, ktoré odpovedajú na hlavné analytické otázky projektu. SQL dotazy k vizualizáciám sú uložené v súbore:
-```
-/sql/dashboard_visualizations.sql
-```
+
+### Dashboard – prehľad vizualizácií
+![Dashboard overview](img/dashboard.png)
+
 Príklad vizualizácie
 ```
 SELECT
