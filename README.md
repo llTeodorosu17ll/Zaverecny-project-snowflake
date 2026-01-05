@@ -135,7 +135,7 @@ výpočet poradia krajín pomocou window functions.
 Na základe dátového skladu bolo vytvorených päť vizualizácií, ktoré odpovedajú na hlavné analytické otázky projektu. SQL dotazy k vizualizáciám sú uložené v súbore:
 
 ### Dashboard – prehľad vizualizácií
-![Dashboard overview](img/dashboard.png)
+![Dashboard overview](img/dashboard.jpg)
 
 Príklad vizualizácie
 ```
