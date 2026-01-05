@@ -11,9 +11,9 @@ Projekt sa zameriava na návrh a implementáciu ELT procesu v prostredí Snowfla
 Analyzované dáta pochádzajú zo Svetovej banky (World Bank) a predstavujú dlhodobé časové rady socio-ekonomických a demografických ukazovateľov pre jednotlivé krajiny sveta. Dataset bol zvolený najmä pre svoju dôveryhodnosť, široké pokrytie a vhodnosť na analytické spracovanie.
 
 Dáta sú dostupné prostredníctvom Snowflake Marketplace v databáze:
-
+```
 SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE
-
+```
 
 Biznis proces, ktorý tieto dáta podporujú, spočíva v analytickom hodnotení vývoja populácie a porovnávaní krajín v čase. Takéto analýzy sú využiteľné pri strategickom plánovaní, demografických štúdiách alebo hodnotení globálnych trendov.
 
@@ -50,11 +50,11 @@ Vzťah medzi tabuľkami je realizovaný prostredníctvom identifikátora indiká
 
 ERD diagram pôvodnej dátovej štruktúry je uložený v priečinku /img.
 
-![ERD zdrojových dát (Source ERD)](img/ERD zdrojových dát (Source ERD).png)
+![ERD zdrojových dát](img/ERD_zdrojových_dát.png)
 
 2. Návrh dimenzionálneho modelu (Star Schema)
 
-![Star Schema](img/Star Schema.jpg)
+![Star Schema](img/star_schema.jpg)
 *Dimenzionálny model typu Star Schema s jednou faktovou tabuľkou a tromi dimenziami.*
 
 Na základe analytických potrieb bol navrhnutý dimenzionálny model typu Star Schema, pozostávajúci z jednej faktovej tabuľky a troch dimenzií. Návrh vychádza zo zásad Kimballovej metodológie.
