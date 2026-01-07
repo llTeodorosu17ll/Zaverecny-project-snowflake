@@ -1,181 +1,272 @@
-# Zaverecny-project-snowflake
-ELT proces a dátový sklad v Snowflake – World Bank Indicators
+# ELT Process and Data Warehouse (DWH) in Snowflake  
+## World Bank – World Development Indicators
 
-Toto je záverečný projekt študentov UKF:
-Fedir Vernyhorov, Oleksandr Shtanov
+---
 
-Projekt sa zameriava na návrh a implementáciu ELT procesu v prostredí Snowflake. Výsledkom je dátový sklad postavený na dimenzionálnom modeli typu Star Schema a sada analytických vizualizácií vytvorených nad týmto modelom. Projekt pracuje výhradne s dátami zo Snowflake Marketplace, konkrétne s datasetom World Bank Indicators.
+## 1. Introduction and Source Data Description
 
-1. Úvod a popis zdrojových dát
+This project implements a complete ELT (Extract–Load–Transform) process and a dimensional data warehouse (DWH) in Snowflake.  
+All data used in the project comes exclusively from the **Snowflake Marketplace**.
 
-Analyzované dáta pochádzajú zo Svetovej banky (World Bank) a predstavujú dlhodobé časové rady socio-ekonomických a demografických ukazovateľov pre jednotlivé krajiny sveta. Dataset bol zvolený najmä pre svoju dôveryhodnosť, široké pokrytie a vhodnosť na analytické spracovanie.
+The selected dataset is **World Bank – World Development Indicators (WDI)**.  
+It was chosen because it represents a well-structured, real-world analytical dataset containing globally recognized indicators related to population, demographics, and socio-economic development across countries and time.
 
-Dáta sú dostupné prostredníctvom Snowflake Marketplace v databáze:
-```
-SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE
-```
+### Purpose of the Analysis
 
-Biznis proces, ktorý tieto dáta podporujú, spočíva v analytickom hodnotení vývoja populácie a porovnávaní krajín v čase. Takéto analýzy sú využiteľné pri strategickom plánovaní, demografických štúdiách alebo hodnotení globálnych trendov.
+The goal of the project is to:
+- design a scalable star schema,
+- enable historical and comparative analysis across countries and years,
+- demonstrate correct ELT principles in Snowflake,
+- present analytical results using meaningful visualizations.
 
-Dataset obsahuje:
+### Source Dataset
 
-časové rady indikátorov,
+- **Marketplace database:** `SNOWFLAKE_PUBLIC_DATA_FREE`
+- **Schema:** `PUBLIC_DATA_FREE`
 
-identifikátory krajín a indikátorov,
+#### Source Tables
 
-numerické hodnoty,
+**WORLD_BANK_TIMESERIES**
+- Contains time-series values of World Bank indicators.
+- Each record represents a value of one indicator for one country and date.
+- Key attributes include country identifier, indicator code, date, value, and unit.
 
-metadáta opisujúce význam jednotlivých ukazovateľov.
+**WORLD_BANK_ATTRIBUTES**
+- Contains metadata describing indicators.
+- Includes indicator names, units, measurement types, frequency, source, and ESG classification.
+- Provides descriptive context for analytical interpretation.
 
-Analýza je zameraná najmä na:
+### ERD – Source Data Structure
 
-vývoj podielu populácie podľa pohlavia,
+![ERD Source Schema](img/erd_schema.png)
 
-vekovú štruktúru obyvateľstva,
+---
 
-porovnanie vybraných krajín v čase.
+## 2. Dimensional Model Design (Star Schema)
 
-1.1 Popis zdrojových tabuliek
-WORLD_BANK_TIMESERIES
+The analytical data warehouse is designed using a **Star Schema**, optimized for analytical queries.
 
-Obsahuje samotné merané hodnoty indikátorov. Každý záznam reprezentuje hodnotu jedného indikátora pre konkrétnu krajinu a dátum.
+### Dimension Tables
 
-WORLD_BANK_ATTRIBUTES
+**DIM_COUNTRY**
+- Stores distinct countries identified by `geo_id`.
+- Used for geographical analysis.
+- SCD Type: **Type 0** (static reference data).
 
-Obsahuje metadáta k indikátorom – názov, jednotku, frekvenciu a zdroj dát.
+**DIM_DATE**
+- Stores derived calendar attributes.
+- Attributes include date, year, and decade.
+- Enables time-based analysis.
+- SCD Type: **Type 0**.
 
-Vzťah medzi tabuľkami je realizovaný prostredníctvom identifikátora indikátora VARIABLE.
+**DIM_INDICATOR**
+- Stores metadata for World Bank indicators.
+- Includes indicator code, name, unit, frequency, source, and ESG pillar.
+- SCD Type: **Type 0**.
 
-1.2 ERD diagram zdrojových dát
+### Fact Table
 
-ERD diagram pôvodnej dátovej štruktúry je uložený v priečinku /img.
+**FACT_WORLD_BANK_METRICS**
+- Stores measured indicator values.
+- Grain: one indicator value per country per date.
+- Contains surrogate primary key and foreign keys to all dimensions.
+- Includes analytical metric `yearly_rank`, derived using window functions.
 
-![ERD zdrojových dát](img/ERD_zdrojových_dát.png)
+### Star Schema Diagram
 
-2. Návrh dimenzionálneho modelu (Star Schema)
+![Star Schema](img/star_schema.png)
 
-![Star Schema](img/star_schema.jpg)
-*Dimenzionálny model typu Star Schema s jednou faktovou tabuľkou a tromi dimenziami.*
+---
 
-Na základe analytických potrieb bol navrhnutý dimenzionálny model typu Star Schema, pozostávajúci z jednej faktovej tabuľky a troch dimenzií. Návrh vychádza zo zásad Kimballovej metodológie.
+## 3. ELT Process in Snowflake
 
-2.1 Faktová tabuľka
-fact_world_bank_metrics
+### Extract
 
-Faktová tabuľka uchováva merané hodnoty indikátorov a odkazy na jednotlivé dimenzie. Každý záznam reprezentuje jednu hodnotu indikátora v danom čase a pre konkrétnu krajinu.
+Data is extracted from the Snowflake Marketplace into staging tables using CTAS (CREATE TABLE AS SELECT).
 
-Hlavné stĺpce:
-
-fact_id – primárny kľúč
-
-country_id – väzba na dimenziu krajín
-
-indicator_id – väzba na dimenziu indikátorov
-
-date_id – väzba na časovú dimenziu
-
-value – hodnota indikátora
-
-yearly_rank – poradie krajiny v rámci daného indikátora a roka
-
-Vo faktovej tabuľke je použitá window function RANK(), ktorá umožňuje porovnanie krajín medzi sebou v rámci rovnakého roka.
-
-```
-RANK() OVER (
-  PARTITION BY indicator_id, year
-  ORDER BY value DESC
-) AS yearly_rank
-```
-2.2 Dimenzie
-dim_country
-
-Dimenzia krajín obsahuje zoznam krajín identifikovaných pomocou GEO_ID.
-Typ: SCD Type 0
-
-dim_indicator
-
-Dimenzia indikátorov uchováva metadáta o jednotlivých ukazovateľoch (názov, jednotka, zdroj).
-Typ: SCD Type 0
-
-dim_date
-
-Časová dimenzia obsahuje dátum, rok a dekádu a slúži na časové analýzy.
-
-3. ELT proces v Snowflake
-
-Projekt využíva ELT prístup, pri ktorom sú transformácie realizované priamo v databáze Snowflake.
-
-3.1 Extract
-
-Dáta boli extrahované zo Snowflake Marketplace pomocou príkazu CREATE TABLE AS SELECT.
-```
+```sql
 CREATE OR REPLACE TABLE STAGING_WORLD_BANK_TIMESERIES AS
-SELECT *
+SELECT
+    GEO_ID,
+    VARIABLE,
+    VARIABLE_NAME,
+    DATE,
+    VALUE,
+    UNIT
 FROM SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.WORLD_BANK_TIMESERIES
 WHERE VALUE IS NOT NULL;
-```
-3.2 Load
 
-Zo staging tabuliek boli vytvorené dimenzie a faktová tabuľka. Počas tohto kroku boli vytvorené surrogate keys a zabezpečené väzby medzi tabuľkami.
-
-3.3 Transform
-
-Transformačná fáza zahŕňala:
-
-deduplikáciu dát,
-
-úpravu dátových typov,
-
-tvorbu časovej dimenzie,
-
-výpočet poradia krajín pomocou window functions.
-
-4. Vizualizácia dát
-
-Na základe dátového skladu bolo vytvorených päť vizualizácií, ktoré odpovedajú na hlavné analytické otázky projektu. SQL dotazy k vizualizáciám sú uložené v súbore:
-
-### Dashboard – prehľad vizualizácií
-![Dashboard overview](img/dashboard.jpg)
-
-Príklad vizualizácie
-```
+CREATE OR REPLACE TABLE STAGING_WORLD_BANK_ATTRIBUTES AS
 SELECT
-  c.geo_id,
-  AVG(f.value) AS avg_value
+    VARIABLE,
+    VARIABLE_NAME,
+    MEASURE,
+    UNIT,
+    FREQUENCY,
+    SOURCE,
+    WORLD_BANK_SOURCE,
+    ESG_PILLAR
+FROM SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.WORLD_BANK_ATTRIBUTES;
+```
+
+### Transform
+```sql
+CREATE OR REPLACE TABLE finalProjectSchema.dim_date AS
+SELECT
+    ROW_NUMBER() OVER (ORDER BY date) AS date_id,
+    date,
+    EXTRACT(YEAR FROM date) AS year,
+    FLOOR(EXTRACT(YEAR FROM date) / 10) * 10 AS decade
+FROM (
+    SELECT DISTINCT date
+    FROM finalProjectSchema.STAGING_WORLD_BANK_TIMESERIES
+);
+
+CREATE OR REPLACE TABLE finalProjectSchema.dim_country AS
+SELECT
+    ROW_NUMBER() OVER (ORDER BY geo_id) AS country_id,
+    geo_id
+FROM (
+    SELECT DISTINCT GEO_ID AS geo_id
+    FROM finalProjectSchema.STAGING_WORLD_BANK_TIMESERIES
+);
+
+CREATE OR REPLACE TABLE finalProjectSchema.dim_indicator AS
+SELECT
+    ROW_NUMBER() OVER (ORDER BY variable) AS indicator_id,
+    variable,
+    variable_name,
+    measure,
+    unit,
+    frequency,
+    source,
+    world_bank_source,
+    esg_pillar
+FROM (
+    SELECT DISTINCT
+        VARIABLE AS variable,
+        VARIABLE_NAME AS variable_name,
+        MEASURE,
+        UNIT,
+        FREQUENCY,
+        SOURCE,
+        WORLD_BANK_SOURCE,
+        ESG_PILLAR
+    FROM finalProjectSchema.STAGING_WORLD_BANK_ATTRIBUTES
+);
+```
+
+### Load
+```sql
+CREATE OR REPLACE TABLE finalProjectSchema.fact_world_bank_metrics AS
+SELECT
+    ROW_NUMBER() OVER (ORDER BY ts.GEO_ID, ts.VARIABLE, ts.DATE) AS fact_id,
+    c.country_id,
+    i.indicator_id,
+    d.date_id,
+    ts.VALUE AS value,
+    ROW_NUMBER() OVER (
+        PARTITION BY i.indicator_id, d.year
+        ORDER BY ts.VALUE DESC
+    ) AS yearly_rank
+FROM finalProjectSchema.STAGING_WORLD_BANK_TIMESERIES ts
+JOIN finalProjectSchema.dim_country c
+    ON ts.GEO_ID = c.geo_id
+JOIN finalProjectSchema.dim_indicator i
+    ON ts.VARIABLE = i.variable
+JOIN finalProjectSchema.dim_date d
+    ON ts.DATE = d.date;
+```
+
+---
+## Data Visualizations
+
+### Visualization 1: Top 10 Countries by Male Population Share (Latest Year)
+
+This bar chart displays the top 10 countries with the highest male population share (%) in the most recent year.
+The ranking is computed using a window function in the fact table.
+
+```sql
+SELECT
+    c.geo_id AS country,
+    f.value
 FROM fact_world_bank_metrics f
 JOIN dim_country c ON f.country_id = c.country_id
-GROUP BY c.geo_id
-ORDER BY avg_value DESC
-LIMIT 10;
+JOIN dim_indicator i ON f.indicator_id = i.indicator_id
+JOIN dim_date d ON f.date_id = d.date_id
+WHERE i.variable = 'WDI_SP.POP.TOTL.MA.ZS'
+  AND d.year = (SELECT MAX(year) FROM dim_date)
+  AND f.yearly_rank <= 10
+ORDER BY f.value DESC;
 ```
 
-Ďalšie vizualizácie zobrazujú:
+### Visualization 2: Global Trend of Male Population Share
 
-vývoj populácie v čase,
+This line chart shows the global average share of male population (%) over time, allowing observation of long-term demographic stability.
 
-porovnanie vybraných krajín,
-
-demografické trendy podľa pohlavia,
-
-vekovú štruktúru obyvateľstva.
-
-5. Štruktúra repozitára
-```
-/sql
-  etl_worldbank.sql
-  dashboard_visualizations.sql
-
-/img
-  erd_source.png
-  star_schema.png
-  dashboard.png
-  viz_01.png
-  viz_02.png
-  viz_03.png
-  viz_04.png
-  viz_05.png
+```sql
+SELECT
+    d.year,
+    AVG(f.value) AS avg_population_share
+FROM fact_world_bank_metrics f
+JOIN dim_indicator i ON f.indicator_id = i.indicator_id
+JOIN dim_date d ON f.date_id = d.date_id
+WHERE i.variable = 'WDI_SP.POP.TOTL.MA.ZS'
+GROUP BY d.year
+ORDER BY d.year;
 ```
 
-Záver
+### Visualization 3: Male Population Share by Country (USA, Germany, Japan)
 
-Projekt prezentuje kompletný proces návrhu a implementácie dátového skladu v prostredí Snowflake. Od analýzy zdrojových dát, cez návrh dimenzionálneho modelu až po vizualizácie, riešenie pokrýva všetky základné kroky práce s analytickými dátami a vytvára pevný základ pre ďalšie rozšírenie analýz.
+This chart compares male population share over time for selected countries to highlight national differences.
+
+```sql
+SELECT
+    d.year,
+    c.geo_id AS country,
+    AVG(f.value) AS value
+FROM fact_world_bank_metrics f
+JOIN dim_country c ON f.country_id = c.country_id
+JOIN dim_indicator i ON f.indicator_id = i.indicator_id
+JOIN dim_date d ON f.date_id = d.date_id
+WHERE i.variable = 'WDI_SP.POP.TOTL.MA.ZS'
+  AND c.geo_id IN ('country/USA','country/DEU','country/JPN')
+GROUP BY d.year, c.geo_id
+ORDER BY d.year;
+```
+
+### Visualization 4: Global Share of Working-Age Population (15–64)
+
+This bar chart presents the global proportion of working-age population, an important indicator for economic analysis.
+
+```sql
+SELECT
+    d.year,
+    AVG(f.value) AS value
+FROM fact_world_bank_metrics f
+JOIN dim_indicator i ON f.indicator_id = i.indicator_id
+JOIN dim_date d ON f.date_id = d.date_id
+WHERE i.variable = 'WDI_SP.POP.1564.TO.ZS'
+GROUP BY d.year
+ORDER BY d.year;
+```
+
+### Visualization 5: Gender Composition of Population Over Time
+
+This visualization compares male and female population shares (%) to show long-term gender balance.
+
+```sql
+SELECT
+    d.year,
+    i.variable_name AS gender,
+    AVG(f.value) AS value
+FROM fact_world_bank_metrics f
+JOIN dim_indicator i ON f.indicator_id = i.indicator_id
+JOIN dim_date d ON f.date_id = d.date_id
+WHERE i.variable IN (
+    'WDI_SP.POP.TOTL.MA.ZS',
+    'WDI_SP.POP.TOTL.FE.ZS'
+)
+GROUP BY d.year, i.variable_name
+ORDER BY d.year;
+```
