@@ -38,7 +38,7 @@ The goal of the project is to:
 
 ### ERD – Source Data Structure
 
-![ERD Source Schema](img/erd_schema.png)
+![ERD zdrojových dát](img/ERD_zdrojových_dát.png)
 
 ---
 
@@ -74,7 +74,7 @@ The analytical data warehouse is designed using a **Star Schema**, optimized for
 
 ### Star Schema Diagram
 
-![Star Schema](img/star_schema.png)
+![Star Schema](img/star_schema.jpg)
 
 ---
 
